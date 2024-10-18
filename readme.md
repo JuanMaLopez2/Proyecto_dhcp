@@ -60,11 +60,16 @@ sudo ./cliente_dhcp
 
 ## Autores
 - **Juan Manuel López Sánchez**
-- ****
+- **Cristian Camilo Zapata García**
+- **Daniela Álvarez Acevedo**
 
 ## Referencias
 - ISC DHCP Overview (https://github.com/isc-projects/dhcp)
 - RFC 2131: Dynamic Host Configuration Protocol (DHCP) (https://datatracker.ietf.org/doc/html/rfc2131)
 
+
 ## Importante
 Los archivos **DocCliente_dhcp.md** y **DocServidor_dhcp.md** contienen la documentación detallada de cada una de las carpetas, tanto para el servidor como para el cliente sobre su estructura.
+
+## Diapositivas
+https://www.canva.com/design/DAGT82Y-ydo/RN80g-SotJzf7unQhATXdQ/edit?utm_content=DAGT82Y-ydo&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton
