@@ -154,10 +154,9 @@ void imprimirDetallesDhcp(struct mensajeDhcp *mensaje) {
     unsigned char *opciones = mensaje->opciones;
     int i = 0;
 
-    // Procesa las opciones DHCP
     while (i < 312) {
         switch (opciones[i]) {
-            case 1:  // Máscara de subred
+            case 1:  
                 if (opciones[i + 1] == 4) {
                     struct in_addr mascaraSubred;
                     memcpy(&mascaraSubred.s_addr, &opciones[i + 2], 4);
@@ -165,7 +164,7 @@ void imprimirDetallesDhcp(struct mensajeDhcp *mensaje) {
                 }
                 i += 6; 
                 break;
-            case 6:  // Servidor DNS
+            case 6:  
                 if (opciones[i + 1] == 4) {
                     struct in_addr servidorDns;
                     memcpy(&servidorDns.s_addr, &opciones[i + 2], 4);
@@ -173,7 +172,7 @@ void imprimirDetallesDhcp(struct mensajeDhcp *mensaje) {
                 }
                 i += 6;
                 break;
-            case 255:  // Fin de opciones
+            case 255:
                 return;
             default:
                 i += opciones[i + 1] + 2;

@@ -11,9 +11,9 @@
 #include <sys/socket.h>
 
 // Definiciones de constantes
-#define PUERTO_ESCUCHA 1068    // Puerto donde el servidor escuchará las solicitudes
-#define PUERTO_RESPUESTA 1067  // Puerto para enviar respuestas a los clientes
-#define TAMANO_BUFFER 2048     // Tamaño máximo del buffer para recibir mensajes
+#define PUERTO_ESCUCHA 1067    // Puerto donde el servidor escuchará las solicitudes
+#define PUERTO_RESPUESTA 1068  // Puerto para enviar respuestas a los clientes
+#define TAMANO_BUFFER 1024     // Tamaño máximo del buffer para recibir mensajes
 
 // Estructura del mensaje DHCP
 struct mensajeDhcp {
@@ -35,8 +35,9 @@ struct mensajeDhcp {
 };
 
 // Declaraciones de variables globales
-extern unsigned char direccionMacCliente[16];  
-extern uint32_t idTransaccionCliente;  
+extern u_int8_t direccionMacCliente[16];  
+extern uint32_t idTransaccionCliente;
+extern char* ipAsignada;  
 extern int direccionIpDisponible;  // Contador de direcciones IP disponibles
 
 // Funciones definidas en el servidor DHCP
@@ -45,6 +46,7 @@ void configurarServidor(int socketFd, struct sockaddr_in *servidor);
 void configurarBroadcast(int socketFd, struct sockaddr_in *broadcast);
 int recibirDhcpDiscover(int socketFd, struct sockaddr_in *cliente, int *longitudDir, char *buffer);
 char* asignarDireccionIp();
+char* obtenerIpServidor();
 void enviarDhcpOferta(int socketFd, struct sockaddr_in *cliente, int longitudDir);
 int recibirDhcpSolicitud(int socketFd, struct sockaddr_in *cliente, int *longitudDir, char *buffer);
 void enviarDhcpReconocimiento(int socketFd, struct sockaddr_in *cliente, int longitudDir);

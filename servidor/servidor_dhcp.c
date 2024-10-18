@@ -41,23 +41,45 @@ int recibirDhcpDiscover(int socketFd, struct sockaddr_in *cliente, int *longitud
     if (recvfrom(socketFd, buffer, TAMANO_BUFFER, 0, (struct sockaddr *)cliente, (socklen_t *)longitudDir) >= 0) {
         printf("DHCP Discover recibido de: %s\n", inet_ntoa(cliente->sin_addr));
         struct mensajeDhcp *mensaje = (struct mensajeDhcp *)buffer;
-        if (mensaje->op == 1) {
-            memcpy(direccionMacCliente, mensaje->direccionHardwareCliente, 6);
+        if (mensaje->op == 1 && mensaje->tipoHardware == 1 && mensaje->longitudHardware == 6 && mensaje->ipCliente == 0) {
             idTransaccionCliente = mensaje->idTransaccion;
+            memcpy(direccionMacCliente, mensaje->direccionHardwareCliente, 6);
             return 1;
         }
+        return 0;
     }
+    perror("recvfrom");
     return 0;
 }
 
 // Asignar dirección IP al cliente
 char* asignarDireccionIp() {
-    if (direccionIpDisponible > 0) {
-        direccionIpDisponible--;
-        return "192.168.1.100";  // Ejemplo de IP estática, ajustable según tu red
+    static char ip[16];
+    if (direccionIpDisponible < 253) {
+        sprintf(ip, "192.168.1.200.%d", direccionIpDisponible);
+        direccionIpDisponible++;
+        return ip;  // Ejemplo de IP estática, ajustable según tu red
     }
     return NULL;
 }
+
+char*obtenerIpServidor(){
+    FILE *fp;
+    char buffer[16];
+    char *direccionIp = malloc(16);
+
+    fp = popen("ifconfig", "r");
+    while (fgets(buffer, sizeof(buffer), fp) != NULL){
+        if(strstr(buffer, "inet ") != NULL){
+            sscanf(buffer, " inet %s", direccionIp);
+            break;
+        }
+    }
+    pclose(fp);
+
+    return direccionIp;
+}
+
 
 // Enviar una oferta DHCP
 void enviarDhcpOferta(int socketFd, struct sockaddr_in *cliente, int longitudDir) {
@@ -67,14 +89,37 @@ void enviarDhcpOferta(int socketFd, struct sockaddr_in *cliente, int longitudDir
     mensajeOferta.tipoHardware = 1; 
     mensajeOferta.longitudHardware = 6;
     mensajeOferta.idTransaccion = idTransaccionCliente;
-    mensajeOferta.yourIpAddress = inet_addr(asignarDireccionIp());
-    memcpy(mensajeOferta.direccionHardwareCliente, direccionMacCliente, 6);
+    mensajeOferta.flags = htons(0x8000);
+
+    ipAsignada = asignarDireccionIp();
+    mensajeOferta.yourIpAddress = htonl(inet_addr(ipAsignada));
+    mensajeOferta.ipServidor = htonl(inet_addr(obtenerIpServidor()));
+    
+    memcpy(mensajeOferta.direccionHardwareCliente, direccionMacCliente, 16);
 
     unsigned char *opciones = mensajeOferta.opciones;
-    opciones[0] = 53; // Tipo de mensaje (Opción)
-    opciones[1] = 1;  // Longitud
-    opciones[2] = 2;  // Oferta DHCP
-    opciones[3] = 255;  // Fin de opciones
+    int indice = 0;
+
+    // Tipo de mensaje DHCP - DHCPOFFER
+    opciones[indice++] = 53; // Tipo de mensaje (Opción)
+    opciones[indice++] = 1;  // Longitud
+    opciones[indice++] = 2;  // Oferta DHCP
+    
+    // Mascara Subnet
+    opciones[indice++] = 1;
+    opciones[indice++] = 4;
+    uint32_t mascaraSubnet = htonl(0xFFFFFF00);
+    memcpy(&opciones[indice], &mascaraSubnet, 4);
+    indice += 4;
+
+    // DNS    
+    opciones[indice++] = 6;
+    opciones[indice++] = 4;
+    uint32_t dns = htonl(134744072);
+    memcpy(&opciones[indice], &dns, 4);
+    indice += 4;
+
+    opciones[indice++] = 255;  // Fin de opciones
 
     if (sendto(socketFd, &mensajeOferta, sizeof(mensajeOferta), 0, (struct sockaddr *)cliente, longitudDir) == -1) {
         perror("Error al enviar la oferta DHCP");
@@ -86,11 +131,15 @@ void enviarDhcpOferta(int socketFd, struct sockaddr_in *cliente, int longitudDir
 
 // Recibir solicitud de DHCP Request
 int recibirDhcpSolicitud(int socketFd, struct sockaddr_in *cliente, int *longitudDir, char *buffer) {
-    ssize_t bytesRecibidos = recvfrom(socketFd, buffer, TAMANO_BUFFER, 0, (struct sockaddr *)cliente, (socklen_t *)longitudDir);
-    if (bytesRecibidos >= 0) {
-        printf("Solicitud DHCP recibida de: %s\n", inet_ntoa(cliente->sin_addr));
-        return 1;
+    if (recvfrom(socketFd, buffer, TAMANO_BUFFER, 0, (struct sockaddr *)cliente,(socklen_t *)longitudDir) >= 0){
+        struct mensajeDhcp *mensaje = (struct mensajeDhcp *)buffer;
+        if (mensaje->op == 1 && idTransaccionCliente == mensaje->idTransaccion && mensaje->tipoHardware == 1 && mensaje->longitudHardware == 6){
+            printf("Solicitud DHCP recibida de: %s\n", inet_ntoa(cliente->sin_addr));
+            return 1;
+        };
+        return 0;
     }
+    perror("recvfrom");
     return 0;
 }
 
@@ -102,14 +151,30 @@ void enviarDhcpReconocimiento(int socketFd, struct sockaddr_in *cliente, int lon
     mensajeAck.tipoHardware = 1;
     mensajeAck.longitudHardware = 6;
     mensajeAck.idTransaccion = idTransaccionCliente;
-    mensajeAck.yourIpAddress = inet_addr(asignarDireccionIp());
-    memcpy(mensajeAck.direccionHardwareCliente, direccionMacCliente, 6);
+    mensajeAck.flags = htons(0x8000);
+    mensajeAck.yourIpAddress = htonl(inet_addr(ipAsignada));
+    mensajeAck.ipServidor = htonl(inet_addr(obtenerIpServidor()));
+    
+    memcpy(mensajeAck.direccionHardwareCliente, direccionMacCliente, 16);
 
     unsigned char *opciones = mensajeAck.opciones;
     int indice = 0;
+
     opciones[indice++] = 53;  
     opciones[indice++] = 1;  
     opciones[indice++] = 5;  // Reconocimiento (ACK)
+
+    opciones[indice++] = 1;
+    opciones[indice++] = 4;
+    uint32_t mascaraSubnet = htonl(0xFFFFFF00);
+    memcpy(&opciones[indice], &mascaraSubnet, 4);
+    indice +=4;
+
+    opciones[indice++] = 6;
+    opciones[indice++] = 4;
+    uint32_t dns = htonl(134744042);
+    memcpy(&opciones[indice], &dns, 4);
+    indice += 4;
 
     opciones[indice++] = 255;  // Fin de opciones
 
